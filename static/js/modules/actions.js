@@ -314,35 +314,49 @@ export async function restoreFile(fileId) {
 }
 
 // Permanent delete
+// Permanent delete
 export async function permanentDelete(fileId) {
-    if (!confirm('Permanently delete this file? This cannot be undone.')) return;
+    const file = state.currentFiles.find(f => f.id === fileId) || { original_filename: 'Item' };
 
-    try {
-        await fetch(`${state.API_URL}/api/files/${fileId}/permanent`, {
-            method: 'DELETE',
-            headers: { 'Authorization': `Bearer ${state.token}` }
-        });
-        refreshCurrentView();
-        loadStorageInfo();
-    } catch (err) {
-        console.error('Error:', err);
-    }
+    showConfirmDialog(
+        'Delete Forever',
+        'Permanently delete this file? This cannot be undone.',
+        file.original_filename,
+        async () => {
+            try {
+                await fetch(`${state.API_URL}/api/files/${fileId}/permanent`, {
+                    method: 'DELETE',
+                    headers: { 'Authorization': `Bearer ${state.token}` }
+                });
+                refreshCurrentView();
+                loadStorageInfo();
+            } catch (err) {
+                console.error('Error:', err);
+            }
+        }
+    );
 }
 
 // Empty trash
+// Empty trash
 export async function emptyTrash() {
-    if (!confirm('Empty trash? All files will be permanently deleted.')) return;
-
-    try {
-        await fetch(`${state.API_URL}/api/files/trash/empty`, {
-            method: 'DELETE',
-            headers: { 'Authorization': `Bearer ${state.token}` }
-        });
-        refreshCurrentView();
-        loadStorageInfo();
-    } catch (err) {
-        console.error('Error:', err);
-    }
+    showConfirmDialog(
+        'Empty Trash',
+        'All files in trash will be permanently deleted. This cannot be undone.',
+        'Empty Trash',
+        async () => {
+            try {
+                await fetch(`${state.API_URL}/api/files/trash/empty`, {
+                    method: 'DELETE',
+                    headers: { 'Authorization': `Bearer ${state.token}` }
+                });
+                refreshCurrentView();
+                loadStorageInfo();
+            } catch (err) {
+                console.error('Error:', err);
+            }
+        }
+    );
 }
 
 // Context menu

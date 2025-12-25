@@ -618,6 +618,16 @@ async def copy_file(
     }
 
 
+@router.delete("/{file_id}/permanent")
+async def permanent_delete_file(
+    file_id: str,
+    user: dict = Depends(get_current_user)
+):
+    """Permanently delete file (explicit endpoint)"""
+    # Reuse existing delete logic with permanent=True
+    return await delete_file(file_id, permanent=True, user=user)
+
+
 @router.delete("/{file_id}")
 async def delete_file(
     file_id: str,
