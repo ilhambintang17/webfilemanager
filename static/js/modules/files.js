@@ -5,6 +5,50 @@
 import { state } from '../app.js';
 import { renderFiles, renderBreadcrumb } from './render.js';
 
+// Update UI based on current view
+function updateViewUI() {
+    const uploadBtn = document.getElementById('upload-btn');
+    const newFolderBtn = document.getElementById('new-folder-btn');
+    const emptyTrashBtn = document.getElementById('empty-trash-btn');
+    const emptyStateActions = document.getElementById('empty-state-actions');
+    const emptyStateTitle = document.getElementById('empty-state-title');
+    const emptyStateMessage = document.getElementById('empty-state-message');
+
+    // Default: show upload and new folder buttons
+    if (uploadBtn) uploadBtn.classList.remove('hidden');
+    if (newFolderBtn) newFolderBtn.classList.remove('hidden');
+    if (emptyTrashBtn) emptyTrashBtn.classList.add('hidden');
+    if (emptyStateActions) emptyStateActions.classList.remove('hidden');
+
+    // Customize based on view
+    if (state.currentView === 'trash') {
+        // Hide upload/new folder in trash
+        if (uploadBtn) uploadBtn.classList.add('hidden');
+        if (newFolderBtn) newFolderBtn.classList.add('hidden');
+        if (emptyTrashBtn) emptyTrashBtn.classList.remove('hidden');
+        if (emptyStateActions) emptyStateActions.classList.add('hidden');
+        if (emptyStateTitle) emptyStateTitle.textContent = 'Trash is empty';
+        if (emptyStateMessage) emptyStateMessage.textContent = 'Deleted files will appear here';
+    } else if (state.currentView === 'favorites') {
+        // Hide upload/new folder in favorites
+        if (uploadBtn) uploadBtn.classList.add('hidden');
+        if (newFolderBtn) newFolderBtn.classList.add('hidden');
+        if (emptyStateActions) emptyStateActions.classList.add('hidden');
+        if (emptyStateTitle) emptyStateTitle.textContent = 'No favorites yet';
+        if (emptyStateMessage) emptyStateMessage.textContent = 'Star files to add them to favorites';
+    } else if (state.currentView === 'recent') {
+        // Hide new folder in recent
+        if (newFolderBtn) newFolderBtn.classList.add('hidden');
+        if (emptyStateActions) emptyStateActions.classList.add('hidden');
+        if (emptyStateTitle) emptyStateTitle.textContent = 'No recent files';
+        if (emptyStateMessage) emptyStateMessage.textContent = 'Recently accessed files will appear here';
+    } else {
+        // Default files view
+        if (emptyStateTitle) emptyStateTitle.textContent = 'No files yet';
+        if (emptyStateMessage) emptyStateMessage.textContent = 'Upload your first file or create a folder';
+    }
+}
+
 // Show loading state
 export function showLoading() {
     document.getElementById('files-grid').classList.add('hidden');
@@ -24,6 +68,7 @@ export function hideLoading() {
 export async function loadFiles(folderId) {
     state.currentFolder = folderId;
     state.currentView = 'files';
+    updateViewUI();
     showLoading();
 
     const url = folderId ? `${state.API_URL}/api/files?folder_id=${folderId}` : `${state.API_URL}/api/files`;
@@ -47,6 +92,7 @@ export async function loadFiles(folderId) {
 // Load favorites
 export async function loadFavorites() {
     state.currentView = 'favorites';
+    updateViewUI();
     showLoading();
     try {
         const res = await fetch(`${state.API_URL}/api/files/favorites/list`, {
@@ -66,6 +112,7 @@ export async function loadFavorites() {
 // Load trash
 export async function loadTrash() {
     state.currentView = 'trash';
+    updateViewUI();
     showLoading();
     try {
         const res = await fetch(`${state.API_URL}/api/files/trash/list`, {
@@ -85,6 +132,7 @@ export async function loadTrash() {
 // Load recent files
 export async function loadRecent() {
     state.currentView = 'recent';
+    updateViewUI();
     showLoading();
     try {
         const res = await fetch(`${state.API_URL}/api/files`, {
@@ -120,6 +168,8 @@ export async function searchFiles(query) {
         loadFiles(state.currentFolder);
         return;
     }
+    state.currentView = 'search';
+    updateViewUI();
     showLoading();
     try {
         const res = await fetch(`${state.API_URL}/api/files/search?q=${encodeURIComponent(query)}`, {
