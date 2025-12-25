@@ -14,8 +14,8 @@ export async function loadStorageInfo() {
         const data = await res.json();
 
         if (data.success) {
-            const used = data.data.used_bytes;
-            const total = data.data.total_bytes;
+            const used = data.data.used;
+            const total = data.data.total;
             const free = total - used;
             const percent = total > 0 ? (used / total) * 100 : 0;
 

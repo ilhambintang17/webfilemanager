@@ -27,9 +27,16 @@ export async function downloadFile(fileId) {
         a.href = url;
         a.download = filename;
         document.body.appendChild(a);
-        a.click();
-        window.URL.revokeObjectURL(url);
-        a.remove();
+
+        // Small delay to ensure browser register click
+        setTimeout(() => {
+            a.click();
+            setTimeout(() => {
+                window.URL.revokeObjectURL(url);
+                a.remove();
+            }, 1000);
+        }, 50);
+
     } catch (err) {
         console.error('Download error:', err);
         alert('Download failed');
@@ -192,6 +199,107 @@ export async function renameFile(fileId, newName) {
     }
 }
 
+// Move File Logic
+let moveTargetFile = null;
+
+// Helper to fetch folders (flat list for simplicity)
+async function fetchFolders() {
+    try {
+        // Fetch all files
+        const res = await fetch(`${state.API_URL}/api/files?type=folder`, {
+            headers: { 'Authorization': `Bearer ${state.token}` }
+        });
+        const data = await res.json();
+        if (!data.success) return [];
+
+        // Return folders only (the API filters by type but let's double check)
+        // Also we might want to recursively fetch if the API only returns current folder
+        // For now, assuming API returns current folder items.
+        // Wait, the API `list_files` lists items in a folder. It doesn't list ALL folders.
+        // We need to implement a walk or just standard level-by-level navigation in the dialog.
+        // For simplicity: Just fetch root items that are folders.
+        // Ideally we need a 'get all folders' API, but we don't have it. 
+        // We will default to Root + Current Folder subfolders.
+        return data.data.items.filter(f => f.is_folder);
+    } catch (e) {
+        console.error(e);
+        return [];
+    }
+}
+
+export async function openMoveDialog(fileId) {
+    moveTargetFile = fileId;
+    const dialog = document.getElementById('move-dialog');
+    const select = document.getElementById('move-destination-select');
+
+    // Reset options
+    select.innerHTML = '<option value="">Home (Root)</option>';
+
+    // Fetch folders in current directory
+    // Note: This is an improved implementation that allows moving to folders in current view
+    // A full folder tree would require backend changes
+    try {
+        const res = await fetch(`${state.API_URL}/api/files?folder_id=${state.currentFolder || ''}`, {
+            headers: { 'Authorization': `Bearer ${state.token}` }
+        });
+        const data = await res.json();
+
+        if (data.success) {
+            const folders = data.data.items.filter(f => f.is_folder && f.id !== fileId);
+            folders.forEach(f => {
+                const opt = document.createElement('option');
+                opt.value = f.id;
+                opt.textContent = f.original_filename;
+                select.appendChild(opt);
+            });
+        }
+    } catch (e) {
+        console.error('Failed to load folders', e);
+    }
+
+    dialog.classList.remove('hidden');
+}
+
+export function closeMoveDialog() {
+    document.getElementById('move-dialog').classList.add('hidden');
+    moveTargetFile = null;
+}
+
+export async function submitMove() {
+    if (!moveTargetFile) return;
+
+    const select = document.getElementById('move-destination-select');
+    const destId = select.value || null; // Empty string means root (null)
+
+    // Don't move to same folder
+    if (destId === state.currentFolder) {
+        closeMoveDialog();
+        return;
+    }
+
+    try {
+        const res = await fetch(`${state.API_URL}/api/files/${moveTargetFile}/move`, {
+            method: 'PUT',
+            headers: {
+                'Authorization': `Bearer ${state.token}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ destination_folder_id: destId })
+        });
+
+        const data = await res.json();
+        if (data.success) {
+            refreshCurrentView();
+            closeMoveDialog();
+        } else {
+            alert('Move failed');
+        }
+    } catch (e) {
+        console.error('Move error:', e);
+        alert('Move failed');
+    }
+}
+
 // Restore file from trash
 export async function restoreFile(fileId) {
     try {
@@ -246,8 +354,19 @@ export function showContextMenu(event, fileId) {
     contextFile = fileId;
 
     const menu = document.getElementById('context-menu');
-    menu.style.left = `${event.clientX}px`;
-    menu.style.top = `${event.clientY}px`;
+
+    // Position menu logic (prevent overflow)
+    const x = event.clientX;
+    const y = event.clientY;
+    const winWidth = window.innerWidth;
+    const winHeight = window.innerHeight;
+
+    menu.style.left = `${x}px`;
+    menu.style.top = `${y}px`;
+
+    // Adjust if off screen (simple check)
+    if (x + 200 > winWidth) menu.style.left = `${x - 200}px`;
+
     menu.classList.remove('hidden');
 }
 
@@ -284,6 +403,12 @@ export function deleteContextFile() {
     }
 }
 
+export function moveContextFile() {
+    if (contextFile) {
+        openMoveDialog(contextFile);
+    }
+}
+
 // Make functions available globally
 window.downloadFile = downloadFile;
 window.downloadCurrentFile = downloadCurrentFile;
@@ -304,3 +429,7 @@ window.downloadContextFile = downloadContextFile;
 window.renameContextFile = renameContextFile;
 window.toggleFavoriteContext = toggleFavoriteContext;
 window.deleteContextFile = deleteContextFile;
+window.moveContextFile = moveContextFile;
+window.openMoveDialog = openMoveDialog;
+window.closeMoveDialog = closeMoveDialog;
+window.submitMove = submitMove;

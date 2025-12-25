@@ -149,12 +149,28 @@ export function renderBreadcrumb(breadcrumb) {
 // Toggle view mode
 export function toggleViewMode(mode) {
     state.viewMode = mode;
-    document.getElementById('view-grid-btn').classList.toggle('bg-white', mode === 'grid');
-    document.getElementById('view-grid-btn').classList.toggle('shadow-sm', mode === 'grid');
-    document.getElementById('view-list-btn').classList.toggle('bg-white', mode === 'list');
-    document.getElementById('view-list-btn').classList.toggle('shadow-sm', mode === 'list');
-    window.dispatchEvent(new CustomEvent('view:changed'));
+    const gridBtn = document.getElementById('grid-btn');
+    const listBtn = document.getElementById('list-btn');
+
+    if (gridBtn && listBtn) {
+        if (mode === 'grid') {
+            gridBtn.classList.remove('text-slate-500', 'bg-transparent');
+            gridBtn.classList.add('bg-white', 'dark:bg-slate-700', 'shadow-sm', 'text-primary');
+
+            listBtn.classList.remove('bg-white', 'dark:bg-slate-700', 'shadow-sm', 'text-primary');
+            listBtn.classList.add('text-slate-500', 'bg-transparent');
+        } else {
+            listBtn.classList.remove('text-slate-500', 'bg-transparent');
+            listBtn.classList.add('bg-white', 'dark:bg-slate-700', 'shadow-sm', 'text-primary');
+
+            gridBtn.classList.remove('bg-white', 'dark:bg-slate-700', 'shadow-sm', 'text-primary');
+            gridBtn.classList.add('text-slate-500', 'bg-transparent');
+        }
+    }
+
+    renderFiles(state.currentFiles || []); // Re-render with new view
 }
 
 // Make available globally
 window.toggleViewMode = toggleViewMode;
+window.setViewMode = toggleViewMode; // Alias for HTML onclick

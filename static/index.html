@@ -560,6 +560,11 @@
             <span class="material-symbols-outlined text-lg">edit</span>
             Rename
         </button>
+        <button onclick="moveContextFile()"
+            class="w-full flex items-center gap-3 px-4 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700">
+            <span class="material-symbols-outlined text-lg">drive_file_move</span>
+            Move
+        </button>
         <button onclick="toggleFavoriteContext()"
             class="w-full flex items-center gap-3 px-4 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700">
             <span class="material-symbols-outlined text-lg">star</span>
@@ -678,6 +683,47 @@
                 <button onclick="submitNewFolder()"
                     class="flex-1 px-6 py-4 text-primary font-semibold hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors border-l border-slate-200 dark:border-slate-700">
                     Create
+                </button>
+            </div>
+        </div>
+    </div>
+    <!-- ============ MOVE FILE DIALOG ============ -->
+    <div id="move-dialog"
+        class="hidden fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm">
+        <div class="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-hidden">
+            <div class="p-6">
+                <div class="flex items-center gap-4 mb-6">
+                    <div
+                        class="w-14 h-14 rounded-2xl bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center shadow-lg shadow-purple-500/30">
+                        <span class="material-symbols-outlined text-3xl text-white icon-fill">drive_file_move</span>
+                    </div>
+                    <div>
+                        <h3 class="text-xl font-bold text-slate-900 dark:text-white">Move Item</h3>
+                        <p class="text-slate-500 dark:text-slate-400 text-sm">Select destination folder</p>
+                    </div>
+                </div>
+
+                <div class="space-y-4">
+                    <div class="relative">
+                        <label
+                            class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Destination</label>
+                        <select id="move-destination-select"
+                            class="w-full px-4 py-3 bg-slate-100 dark:bg-slate-700 border-2 border-transparent rounded-xl text-slate-900 dark:text-white focus:outline-none focus:border-purple-500 transition-all appearance-none cursor-pointer">
+                            <option value="">Home (Root)</option>
+                        </select>
+                        <span
+                            class="material-symbols-outlined absolute right-4 top-[42px] pointer-events-none text-slate-500">expand_more</span>
+                    </div>
+                </div>
+            </div>
+            <div class="flex border-t border-slate-200 dark:border-slate-700">
+                <button onclick="closeMoveDialog()"
+                    class="flex-1 px-6 py-4 text-slate-600 dark:text-slate-300 font-semibold hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">
+                    Cancel
+                </button>
+                <button onclick="submitMove()"
+                    class="flex-1 px-6 py-4 text-purple-600 font-semibold hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors border-l border-slate-200 dark:border-slate-700">
+                    Move Here
                 </button>
             </div>
         </div>
