@@ -48,7 +48,7 @@ A lightweight, self-hosted file manager with a modern web interface. Built with 
 
 1. **Clone the repository**
 ```bash
-git clone https://github.com/YOUR_USERNAME/webfilemanager.git
+git clone https://github.com/ilhambintang17/webfilemanager.git
 cd webfilemanager
 ```
 

@@ -251,6 +251,9 @@ function renderFileCard(file, isTrash) {
                     <button onclick="event.stopPropagation(); downloadFile('${file.id}')" class="p-2 bg-white/90 rounded-full hover:bg-white text-slate-800 shadow-lg" title="Download">
                         <span class="material-symbols-outlined text-lg">download</span>
                     </button>
+                    <button onclick="event.stopPropagation(); deleteFile('${file.id}')" class="p-2 bg-white/90 rounded-full hover:bg-red-500 hover:text-white text-slate-800 shadow-lg" title="Delete">
+                        <span class="material-symbols-outlined text-lg">delete</span>
+                    </button>
                 </div>
             </div>
             <div class="p-3">
@@ -677,16 +680,32 @@ function downloadCurrentFile() {
 }
 
 // ============ FILE ACTIONS ============
-async function deleteFile(fileId) {
-    if (!confirm('Move to trash?')) return;
+let confirmCallback = null;
+let pendingDuplicateFile = null;
+let pendingDuplicateResolve = null;
 
+async function deleteFile(fileId) {
+    // Get file info first for display
     try {
-        await fetch(`${API_URL}/api/files/${fileId}`, {
-            method: 'DELETE',
+        const res = await fetch(`${API_URL}/api/files/${fileId}`, {
             headers: { 'Authorization': `Bearer ${token}` }
         });
-        refreshCurrentView();
-        loadStorageInfo();
+        const data = await res.json();
+        if (data.success) {
+            showConfirmDialog(
+                'Move to Trash',
+                'This file will be moved to trash',
+                data.data.original_filename,
+                async () => {
+                    await fetch(`${API_URL}/api/files/${fileId}`, {
+                        method: 'DELETE',
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
+                    refreshCurrentView();
+                    loadStorageInfo();
+                }
+            );
+        }
     } catch (err) {
         console.error('Error:', err);
     }
@@ -694,10 +713,59 @@ async function deleteFile(fileId) {
 
 function deleteCurrentFile() {
     if (currentFile) {
-        hidePreviewModal();
-        hideVideoModal();
-        hideDocModal();
-        deleteFile(currentFile.id);
+        showConfirmDialog(
+            'Move to Trash',
+            'This file will be moved to trash',
+            currentFile.original_filename,
+            async () => {
+                hidePreviewModal();
+                hideVideoModal();
+                hideDocModal();
+                await fetch(`${API_URL}/api/files/${currentFile.id}`, {
+                    method: 'DELETE',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                refreshCurrentView();
+                loadStorageInfo();
+            }
+        );
+    }
+}
+
+// ============ CUSTOM DIALOGS ============
+function showConfirmDialog(title, message, filename, callback) {
+    document.getElementById('confirm-title').textContent = title;
+    document.getElementById('confirm-message').textContent = message;
+    document.getElementById('confirm-filename').textContent = filename;
+    confirmCallback = callback;
+    document.getElementById('confirm-dialog').classList.remove('hidden');
+}
+
+function closeConfirmDialog() {
+    document.getElementById('confirm-dialog').classList.add('hidden');
+    confirmCallback = null;
+}
+
+function confirmDialogAction() {
+    if (confirmCallback) {
+        confirmCallback();
+    }
+    closeConfirmDialog();
+}
+
+function showDuplicateDialog(filename) {
+    return new Promise((resolve) => {
+        document.getElementById('duplicate-filename').textContent = filename;
+        pendingDuplicateResolve = resolve;
+        document.getElementById('duplicate-dialog').classList.remove('hidden');
+    });
+}
+
+function handleDuplicateAction(action) {
+    document.getElementById('duplicate-dialog').classList.add('hidden');
+    if (pendingDuplicateResolve) {
+        pendingDuplicateResolve(action);
+        pendingDuplicateResolve = null;
     }
 }
 
@@ -803,6 +871,33 @@ async function handleUpload(event) {
     if (!files.length) return;
 
     for (const file of files) {
+        // Check for duplicate file
+        const existingFile = await checkDuplicateFile(file.name);
+
+        if (existingFile) {
+            const action = await showDuplicateDialog(file.name);
+
+            if (action === 'cancel') {
+                continue; // Skip this file
+            } else if (action === 'replace') {
+                // Delete existing file first
+                await fetch(`${API_URL}/api/files/${existingFile.id}`, {
+                    method: 'DELETE',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+            } else if (action === 'keep') {
+                // Rename file to avoid conflict
+                const newName = generateUniqueName(file.name, existingFile.original_filename);
+                const renamedFile = new File([file], newName, { type: file.type });
+                if (renamedFile.size > 10 * 1024 * 1024) {
+                    await chunkedUpload(renamedFile);
+                } else {
+                    await simpleUpload(renamedFile);
+                }
+                continue;
+            }
+        }
+
         // Use chunked upload for files > 10MB
         if (file.size > 10 * 1024 * 1024) {
             await chunkedUpload(file);
@@ -814,6 +909,32 @@ async function handleUpload(event) {
     loadFiles(currentFolder);
     loadStorageInfo();
     event.target.value = '';
+}
+
+async function checkDuplicateFile(filename) {
+    try {
+        const res = await fetch(`${API_URL}/api/files?folder_id=${currentFolder || ''}`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const data = await res.json();
+        if (data.success) {
+            return data.data.find(f => f.original_filename === filename && !f.is_folder);
+        }
+    } catch (err) {
+        console.error('Error checking duplicate:', err);
+    }
+    return null;
+}
+
+function generateUniqueName(filename, existingName) {
+    const lastDot = filename.lastIndexOf('.');
+    const name = lastDot > 0 ? filename.substring(0, lastDot) : filename;
+    const ext = lastDot > 0 ? filename.substring(lastDot) : '';
+
+    // Add (1), (2), etc.
+    let counter = 1;
+    let newName = `${name} (${counter})${ext}`;
+    return newName;
 }
 
 async function simpleUpload(file) {
