@@ -128,7 +128,7 @@ export async function createFolder() {
     if (!name) return;
 
     try {
-        await fetch(`${state.API_URL}/api/files/folder`, {
+        const res = await fetch(`${state.API_URL}/api/files/folder`, {
             method: 'POST',
             headers: {
                 'Authorization': `Bearer ${state.token}`,
@@ -136,12 +136,18 @@ export async function createFolder() {
             },
             body: JSON.stringify({
                 name: name,
-                parent_folder_id: state.currentFolder
+                parent_id: state.currentFolder  // Fixed: was parent_folder_id
             })
         });
-        refreshCurrentView();
+        const data = await res.json();
+        if (data.success) {
+            refreshCurrentView();
+        } else {
+            alert('Failed to create folder: ' + (data.detail || 'Unknown error'));
+        }
     } catch (err) {
         console.error('Error:', err);
+        alert('Failed to create folder');
     }
 }
 
@@ -262,6 +268,7 @@ window.deleteCurrentFile = deleteCurrentFile;
 window.toggleFavorite = toggleFavorite;
 window.toggleFavoritePreview = toggleFavoritePreview;
 window.createFolder = createFolder;
+window.showNewFolderModal = createFolder; // Alias for HTML onclick
 window.restoreFile = restoreFile;
 window.permanentDelete = permanentDelete;
 window.emptyTrash = emptyTrash;
