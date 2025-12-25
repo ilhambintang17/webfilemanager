@@ -664,6 +664,26 @@ async def list_trash(user: dict = Depends(get_current_user)):
     }
 
 
+@router.delete("/trash/empty")
+async def empty_trash(user: dict = Depends(get_current_user)):
+    """Permanently delete all files in trash"""
+    deleted_files = get_deleted_files()
+    deleted_count = 0
+    
+    for file in deleted_files:
+        try:
+            # delete_file_record handles both physical file and record deletion
+            if delete_file_record(file["id"]):
+                deleted_count += 1
+        except Exception as e:
+            print(f"Error deleting file {file['id']}: {e}")
+    
+    return {
+        "success": True,
+        "message": f"Deleted {deleted_count} files permanently"
+    }
+
+
 # Favorites route
 @router.get("/favorites/list")
 async def list_favorites(user: dict = Depends(get_current_user)):
