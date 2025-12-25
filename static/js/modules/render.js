@@ -55,8 +55,8 @@ export function renderFileCard(file, isTrash) {
 
     if (file.is_folder) {
         return `
-        <div onclick="loadFiles('${file.id}')" oncontextmenu="showContextMenu(event, '${file.id}')" 
-             class="group relative bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-4 cursor-pointer hover:shadow-md hover:border-primary/50 transition-all select-none">
+        <div onclick="${isTrash ? "alert('Restore folder to view contents')" : `loadFiles('${file.id}')`}" oncontextmenu="showContextMenu(event, '${file.id}')" 
+             class="group relative bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-4 cursor-pointer hover:shadow-md hover:border-primary/50 transition-all select-none ${isTrash ? 'opacity-75' : ''}">
             <div class="flex items-start justify-between mb-3">
                 <span class="material-symbols-outlined text-4xl text-primary icon-fill">folder</span>
                 <button onclick="event.stopPropagation(); showContextMenu(event, '${file.id}')" class="opacity-0 group-hover:opacity-100 p-1 text-slate-400 hover:text-slate-600 transition-opacity">
@@ -108,9 +108,9 @@ export function renderFileCard(file, isTrash) {
 export function renderFileRow(file, isTrash) {
     const icon = getFileIcon(file);
     return `
-    <div onclick="${file.is_folder ? `loadFiles('${file.id}')` : `previewFile('${file.id}')`}" 
+    <div onclick="${isTrash ? "alert('Restore folder to view contents')" : (file.is_folder ? `loadFiles('${file.id}')` : `previewFile('${file.id}')`)}" 
          oncontextmenu="showContextMenu(event, '${file.id}')"
-         class="group/row flex items-center gap-4 p-3 bg-white dark:bg-slate-800 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 cursor-pointer border border-slate-100 dark:border-slate-700">
+         class="group/row flex items-center gap-4 p-3 bg-white dark:bg-slate-800 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 cursor-pointer border border-slate-100 dark:border-slate-700 ${isTrash ? 'opacity-75' : ''}">
         <div class="w-10 h-10 flex items-center justify-center">
             <span class="material-symbols-outlined text-2xl ${icon.color} ${file.is_folder ? 'icon-fill' : ''}">${icon.icon}</span>
         </div>

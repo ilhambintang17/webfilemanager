@@ -355,30 +355,79 @@ export function showContextMenu(event, fileId = null) {
 
     const menu = document.getElementById('context-menu');
 
-    // Toggle items based on whether we clicked a file or empty space
-    const fileItems = menu.querySelectorAll('button:not([id="ctx-paste-btn"])');
-    fileItems.forEach(item => {
-        if (fileId) {
-            item.classList.remove('hidden');
-            item.classList.add('flex');
-        } else {
-            item.classList.add('hidden');
-            item.classList.remove('flex');
-        }
-    });
+    // Toggle items based on view mode (Trash vs Normal)
+    const isTrash = state.currentView === 'trash';
 
-    // Toggle dividers
+    // Buttons
+    const restoreBtn = document.getElementById('ctx-restore-btn');
+    const deleteForeverBtn = document.getElementById('ctx-delete-forever-btn');
+    const deleteBtn = document.getElementById('ctx-delete-btn');
+    const previewBtn = menu.querySelector('button[onclick="previewContextFile()"]');
+    const downloadBtn = menu.querySelector('button[onclick="downloadContextFile()"]');
+    const renameBtn = menu.querySelector('button[onclick="renameContextFile()"]');
+    const starBtn = menu.querySelector('button[onclick="toggleFavoriteContext()"]');
+    const copyBtn = menu.querySelector('button[onclick="copyContextFile()"]');
+    const cutBtn = menu.querySelector('button[onclick="cutContextFile()"]');
+    const pasteBtn = document.getElementById('ctx-paste-btn');
+
+    if (isTrash) {
+        // Trash Mode: Show Restore & Delete Forever, hide others
+        if (restoreBtn) {
+            restoreBtn.classList.remove('hidden');
+            restoreBtn.classList.add('flex');
+        }
+        if (deleteForeverBtn) {
+            deleteForeverBtn.classList.remove('hidden');
+            deleteForeverBtn.classList.add('flex');
+        }
+
+        // Hide standard actions
+        [deleteBtn, renameBtn, starBtn, copyBtn, cutBtn, pasteBtn].forEach(el => {
+            if (el) {
+                el.classList.add('hidden');
+                el.classList.remove('flex');
+            }
+        });
+
+        // Visible: Preview & Download might be useful in trash? Usually restricted. 
+        // Let's keep Preview/Download if fileId is set, but hide Rename/Favorite/Copy/Cut/Delete
+    } else {
+        // Normal Mode: Hide Restore & Delete Forever, show others
+        if (restoreBtn) {
+            restoreBtn.classList.add('hidden');
+            restoreBtn.classList.remove('flex');
+        }
+        if (deleteForeverBtn) {
+            deleteForeverBtn.classList.add('hidden');
+            deleteForeverBtn.classList.remove('flex');
+        }
+
+        // Show standard actions if file selected
+        if (fileId) {
+            [deleteBtn, renameBtn, starBtn, copyBtn, cutBtn].forEach(el => {
+                if (el) {
+                    el.classList.remove('hidden');
+                    el.classList.add('flex');
+                }
+            });
+        }
+
+        // Paste checks clipboard
+        updatePasteButtonState();
+    }
+
+    // Dividers
     const dividers = menu.querySelectorAll('div.h-px');
     dividers.forEach(div => {
-        if (fileId) {
+        if (fileId || isTrash) { // Show dividers in trash too
             div.classList.remove('hidden');
         } else {
             div.classList.add('hidden');
         }
     });
 
-    // Update Favorite Text/Icon based on file state
-    if (fileId) {
+    // Update Favorite Text/Icon based on file state (Only in normal view)
+    if (fileId && !isTrash) {
         const file = state.currentFiles.find(f => f.id === fileId);
         if (file) {
             const favText = document.getElementById('ctx-fav-text');
@@ -393,9 +442,6 @@ export function showContextMenu(event, fileId = null) {
             }
         }
     }
-
-    // Explicitly update paste button state in context menu
-    updatePasteButtonState();
 
     // Position menu logic
     const x = event.clientX;
@@ -451,6 +497,14 @@ export function moveContextFile() {
     }
 }
 
+export function restoreContextFile() {
+    if (contextFile) restoreFile(contextFile);
+}
+
+export function permanentDeleteContextFile() {
+    if (contextFile) permanentDelete(contextFile);
+}
+
 // Make functions available globally
 window.downloadFile = downloadFile;
 window.downloadCurrentFile = downloadCurrentFile;
@@ -472,6 +526,8 @@ window.renameContextFile = renameContextFile;
 window.toggleFavoriteContext = toggleFavoriteContext;
 window.deleteContextFile = deleteContextFile;
 window.moveContextFile = moveContextFile;
+window.restoreContextFile = restoreContextFile;
+window.permanentDeleteContextFile = permanentDeleteContextFile;
 window.openMoveDialog = openMoveDialog;
 window.closeMoveDialog = closeMoveDialog;
 window.submitMove = submitMove;
