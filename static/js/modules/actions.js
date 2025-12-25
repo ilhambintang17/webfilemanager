@@ -202,29 +202,31 @@ export async function renameFile(fileId, newName) {
 // Move File Logic
 let moveTargetFile = null;
 
-// Helper to fetch folders (flat list for simplicity)
-async function fetchFolders() {
+// Helper to fetch folders recursively
+async function fetchAllFolders(parentId = null, level = 0, allFolders = []) {
     try {
-        // Fetch all files
-        const res = await fetch(`${state.API_URL}/api/files?type=folder`, {
+        const url = `${state.API_URL}/api/files?folder_id=${parentId || ''}`;
+        const res = await fetch(url, {
             headers: { 'Authorization': `Bearer ${state.token}` }
         });
         const data = await res.json();
-        if (!data.success) return [];
 
-        // Return folders only (the API filters by type but let's double check)
-        // Also we might want to recursively fetch if the API only returns current folder
-        // For now, assuming API returns current folder items.
-        // Wait, the API `list_files` lists items in a folder. It doesn't list ALL folders.
-        // We need to implement a walk or just standard level-by-level navigation in the dialog.
-        // For simplicity: Just fetch root items that are folders.
-        // Ideally we need a 'get all folders' API, but we don't have it. 
-        // We will default to Root + Current Folder subfolders.
-        return data.data.items.filter(f => f.is_folder);
+        if (data.success) {
+            const folders = data.data.items.filter(f => f.is_folder);
+
+            for (const folder of folders) {
+                // Add to list with indentation
+                folder.displayName = '-'.repeat(level * 2) + ' ' + folder.original_filename;
+                allFolders.push(folder);
+
+                // Recursive call
+                await fetchAllFolders(folder.id, level + 1, allFolders);
+            }
+        }
     } catch (e) {
-        console.error(e);
-        return [];
+        console.error('Failed to fetch folders', e);
     }
+    return allFolders;
 }
 
 export async function openMoveDialog(fileId) {
@@ -232,32 +234,26 @@ export async function openMoveDialog(fileId) {
     const dialog = document.getElementById('move-dialog');
     const select = document.getElementById('move-destination-select');
 
-    // Reset options
+    // Reset options and show loading state
+    select.innerHTML = '<option value="">Loading folders...</option>';
+    dialog.classList.remove('hidden');
+
+    // Fetch all folders
+    const folders = await fetchAllFolders();
+
+    // Clear and populate
     select.innerHTML = '<option value="">Home (Root)</option>';
 
-    // Fetch folders in current directory
-    // Note: This is an improved implementation that allows moving to folders in current view
-    // A full folder tree would require backend changes
-    try {
-        const res = await fetch(`${state.API_URL}/api/files?folder_id=${state.currentFolder || ''}`, {
-            headers: { 'Authorization': `Bearer ${state.token}` }
-        });
-        const data = await res.json();
-
-        if (data.success) {
-            const folders = data.data.items.filter(f => f.is_folder && f.id !== fileId);
-            folders.forEach(f => {
-                const opt = document.createElement('option');
-                opt.value = f.id;
-                opt.textContent = f.original_filename;
-                select.appendChild(opt);
-            });
+    folders.forEach(f => {
+        // Don't show the file itself if we are moving a folder (can't move into self)
+        if (f.id !== fileId) {
+            const opt = document.createElement('option');
+            opt.value = f.id;
+            opt.textContent = f.displayName;
+            select.appendChild(opt);
         }
-    } catch (e) {
-        console.error('Failed to load folders', e);
-    }
+    });
 
-    dialog.classList.remove('hidden');
 }
 
 export function closeMoveDialog() {
@@ -433,3 +429,120 @@ window.moveContextFile = moveContextFile;
 window.openMoveDialog = openMoveDialog;
 window.closeMoveDialog = closeMoveDialog;
 window.submitMove = submitMove;
+
+// Clipboard Logic (Cut/Copy/Paste)
+const CLIPBOARD_KEY = 'cloudDrive_clipboard';
+
+function setClipboard(action, fileId, filename) {
+    const data = {
+        action: action, // 'copy' or 'cut'
+        fileId: fileId,
+        filename: filename,
+        timestamp: Date.now()
+    };
+    localStorage.setItem(CLIPBOARD_KEY, JSON.stringify(data));
+    updatePasteButtonState();
+}
+
+function getClipboard() {
+    try {
+        const data = localStorage.getItem(CLIPBOARD_KEY);
+        return data ? JSON.parse(data) : null;
+    } catch (e) {
+        return null;
+    }
+}
+
+function clearClipboard() {
+    localStorage.removeItem(CLIPBOARD_KEY);
+    updatePasteButtonState();
+}
+
+export function copyFile(fileId) {
+    // Find file name if not passed? For now assume we have ID.
+    // We need to fetch file info or find it in state.currentFiles
+    const file = state.currentFiles.find(f => f.id === fileId);
+    if (file) {
+        setClipboard('copy', fileId, file.original_filename);
+        // Visual feedback?
+        alert(`Copied: ${file.original_filename}`);
+    }
+}
+
+export function cutFile(fileId) {
+    const file = state.currentFiles.find(f => f.id === fileId);
+    if (file) {
+        setClipboard('cut', fileId, file.original_filename);
+        alert(`Cut: ${file.original_filename}`);
+    }
+}
+
+export async function pasteFile() {
+    const data = getClipboard();
+    if (!data) return;
+
+    if (!state.currentFolder) {
+        // Root folder
+    }
+
+    try {
+        if (data.action === 'copy') {
+            await fetch(`${state.API_URL}/api/files/${data.fileId}/copy`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${state.token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ destination_folder_id: state.currentFolder || null })
+            });
+        } else if (data.action === 'cut') {
+            await fetch(`${state.API_URL}/api/files/${data.fileId}/move`, {
+                method: 'PUT',
+                headers: {
+                    'Authorization': `Bearer ${state.token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ destination_folder_id: state.currentFolder || null })
+            });
+            clearClipboard(); // Cut is one-time
+        }
+        refreshCurrentView();
+    } catch (e) {
+        console.error('Paste failed', e);
+        alert('Paste failed');
+    }
+}
+
+function updatePasteButtonState() {
+    const data = getClipboard();
+    const btn = document.getElementById('paste-btn');
+    if (btn) {
+        if (data) {
+            btn.classList.remove('hidden');
+            btn.title = `${data.action === 'cut' ? 'Move' : 'Copy'} ${data.filename}`;
+        } else {
+            btn.classList.add('hidden');
+        }
+    }
+}
+
+// Context menu helpers
+export function copyContextFile() {
+    if (contextFile) copyFile(contextFile);
+}
+
+export function cutContextFile() {
+    if (contextFile) cutFile(contextFile);
+}
+
+// Expose to window
+window.copyFile = copyFile;
+window.cutFile = cutFile;
+window.pasteFile = pasteFile;
+window.copyContextFile = copyContextFile;
+window.cutContextFile = cutContextFile;
+
+// Initialize paste button on load
+document.addEventListener('DOMContentLoaded', updatePasteButtonState);
+// Listen for storage changes (tabs sync)
+window.addEventListener('storage', updatePasteButtonState);

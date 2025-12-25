@@ -223,6 +223,11 @@
                                 <span class="material-symbols-outlined text-lg">delete_forever</span>
                                 <span>Empty Trash</span>
                             </button>
+                            <button id="paste-btn" onclick="pasteFile()"
+                                class="hidden flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-sm font-medium transition-colors shadow-sm">
+                                <span class="material-symbols-outlined text-lg">content_paste</span>
+                                <span>Paste</span>
+                            </button>
                         </div>
                     </div>
 
@@ -568,14 +573,22 @@
         <button onclick="toggleFavoriteContext()"
             class="w-full flex items-center gap-3 px-4 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700">
             <span class="material-symbols-outlined text-lg">star</span>
-            <span id="ctx-fav-text">Add to Favorites</span>
-        </button>
-        <div class="h-px bg-slate-200 dark:bg-slate-700 my-2"></div>
-        <button onclick="deleteContextFile()"
-            class="w-full flex items-center gap-3 px-4 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20">
-            <span class="material-symbols-outlined text-lg">delete</span>
-            Delete
-        </button>
+            <button onclick="copyContextFile()"
+                class="w-full flex items-center gap-3 px-4 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700">
+                <span class="material-symbols-outlined text-lg">content_copy</span>
+                Copy
+            </button>
+            <button onclick="cutContextFile()"
+                class="w-full flex items-center gap-3 px-4 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700">
+                <span class="material-symbols-outlined text-lg">content_cut</span>
+                Cut
+            </button>
+            <div class="h-px bg-slate-200 dark:bg-slate-700 my-2"></div>
+            <button onclick="deleteContextFile()"
+                class="w-full flex items-center gap-3 px-4 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20">
+                <span class="material-symbols-outlined text-lg">delete</span>
+                Delete
+            </button>
     </div>
 
     <!-- ============ CUSTOM CONFIRM DIALOG ============ -->
