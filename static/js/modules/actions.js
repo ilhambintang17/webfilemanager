@@ -122,10 +122,30 @@ export async function toggleFavoritePreview() {
     }
 }
 
-// Create folder
-export async function createFolder() {
-    const name = prompt('Enter folder name:');
-    if (!name) return;
+// Show new folder dialog
+export function showNewFolderModal() {
+    const dialog = document.getElementById('new-folder-dialog');
+    const input = document.getElementById('new-folder-input');
+    input.value = '';
+    dialog.classList.remove('hidden');
+    setTimeout(() => input.focus(), 100);
+}
+
+// Close new folder dialog
+export function closeNewFolderDialog() {
+    document.getElementById('new-folder-dialog').classList.add('hidden');
+}
+
+// Submit new folder
+export async function submitNewFolder() {
+    const input = document.getElementById('new-folder-input');
+    const name = input.value.trim();
+
+    if (!name) {
+        input.classList.add('border-red-500');
+        input.focus();
+        return;
+    }
 
     try {
         const res = await fetch(`${state.API_URL}/api/files/folder`, {
@@ -136,11 +156,12 @@ export async function createFolder() {
             },
             body: JSON.stringify({
                 name: name,
-                parent_id: state.currentFolder  // Fixed: was parent_folder_id
+                parent_id: state.currentFolder
             })
         });
         const data = await res.json();
         if (data.success) {
+            closeNewFolderDialog();
             refreshCurrentView();
         } else {
             alert('Failed to create folder: ' + (data.detail || 'Unknown error'));
@@ -150,6 +171,9 @@ export async function createFolder() {
         alert('Failed to create folder');
     }
 }
+
+// Legacy alias
+export const createFolder = showNewFolderModal;
 
 // Rename file
 export async function renameFile(fileId, newName) {
@@ -268,7 +292,9 @@ window.deleteCurrentFile = deleteCurrentFile;
 window.toggleFavorite = toggleFavorite;
 window.toggleFavoritePreview = toggleFavoritePreview;
 window.createFolder = createFolder;
-window.showNewFolderModal = createFolder; // Alias for HTML onclick
+window.showNewFolderModal = showNewFolderModal;
+window.closeNewFolderDialog = closeNewFolderDialog;
+window.submitNewFolder = submitNewFolder;
 window.restoreFile = restoreFile;
 window.permanentDelete = permanentDelete;
 window.emptyTrash = emptyTrash;
