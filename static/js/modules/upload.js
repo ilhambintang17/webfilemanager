@@ -10,48 +10,60 @@ import { loadStorageInfo } from './storage.js';
 
 const CHUNK_SIZE = 5 * 1024 * 1024; // 5MB chunks
 const activeUploads = new Map();
+const uploadProgressIds = new Map(); // filename -> progress element id
 
 // Handle file upload
 export async function handleUpload(event) {
     const files = event.target.files;
     if (!files.length) return;
 
+    // Start all uploads
+    const uploadPromises = [];
+
     for (const file of files) {
-        // Check for duplicate file
-        const existingFile = await checkDuplicateFile(file.name);
-
-        if (existingFile) {
-            const action = await showDuplicateDialog(file.name);
-
-            if (action === 'cancel') {
-                continue;
-            } else if (action === 'replace') {
-                await fetch(`${state.API_URL}/api/files/${existingFile.id}`, {
-                    method: 'DELETE',
-                    headers: { 'Authorization': `Bearer ${state.token}` }
-                });
-            } else if (action === 'keep') {
-                const newName = generateUniqueName(file.name);
-                const renamedFile = new File([file], newName, { type: file.type });
-                if (renamedFile.size > 10 * 1024 * 1024) {
-                    await chunkedUpload(renamedFile);
-                } else {
-                    await simpleUpload(renamedFile);
-                }
-                continue;
-            }
-        }
-
-        if (file.size > 10 * 1024 * 1024) {
-            await chunkedUpload(file);
-        } else {
-            await simpleUpload(file);
-        }
+        uploadPromises.push(processUpload(file));
     }
+
+    // Wait for all uploads to complete
+    await Promise.all(uploadPromises);
 
     loadFiles(state.currentFolder);
     loadStorageInfo();
     event.target.value = '';
+}
+
+// Process single upload with duplicate check
+async function processUpload(file) {
+    // Check for duplicate file
+    const existingFile = await checkDuplicateFile(file.name);
+
+    if (existingFile) {
+        const action = await showDuplicateDialog(file.name);
+
+        if (action === 'cancel') {
+            return;
+        } else if (action === 'replace') {
+            await fetch(`${state.API_URL}/api/files/${existingFile.id}`, {
+                method: 'DELETE',
+                headers: { 'Authorization': `Bearer ${state.token}` }
+            });
+        } else if (action === 'keep') {
+            const newName = generateUniqueName(file.name);
+            const renamedFile = new File([file], newName, { type: file.type });
+            return uploadFile(renamedFile);
+        }
+    }
+
+    return uploadFile(file);
+}
+
+// Upload file (chooses simple or chunked based on size)
+async function uploadFile(file) {
+    if (file.size > 10 * 1024 * 1024) {
+        await chunkedUpload(file);
+    } else {
+        await simpleUpload(file);
+    }
 }
 
 // Check for duplicate file
@@ -84,21 +96,23 @@ async function simpleUpload(file) {
     formData.append('file', file);
     if (state.currentFolder) formData.append('folder_id', state.currentFolder);
 
-    showUploadProgress(file.name, 0, file.size);
+    const progressId = showUploadProgress(file.name, 0, file.size, false);
+    uploadProgressIds.set(file.name, progressId);
 
     try {
         const xhr = new XMLHttpRequest();
 
         xhr.upload.addEventListener('progress', (e) => {
             if (e.lengthComputable) {
-                updateUploadProgress(file.name, e.loaded, e.total);
+                updateUploadProgressById(progressId, e.loaded, e.total);
             }
         });
 
         await new Promise((resolve, reject) => {
             xhr.onload = () => {
                 if (xhr.status === 200) {
-                    completeUploadProgress(file.name);
+                    completeUploadProgressById(progressId);
+                    uploadProgressIds.delete(file.name);
                     resolve();
                 } else {
                     reject(new Error('Upload failed'));
@@ -111,7 +125,8 @@ async function simpleUpload(file) {
         });
     } catch (err) {
         console.error('Upload error:', err);
-        errorUploadProgress(file.name, err.message);
+        errorUploadProgressById(progressId, err.message);
+        uploadProgressIds.delete(file.name);
     }
 }
 
@@ -119,7 +134,9 @@ async function simpleUpload(file) {
 async function chunkedUpload(file) {
     const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
 
-    showUploadProgress(file.name, 0, file.size, true);
+    // Show progress immediately
+    const progressId = showUploadProgress(file.name, 0, file.size, true);
+    uploadProgressIds.set(file.name, progressId);
 
     try {
         const initRes = await fetch(`${state.API_URL}/api/files/upload/init`, {
@@ -141,11 +158,15 @@ async function chunkedUpload(file) {
 
         const uploadId = initData.data.upload_id;
 
+        // Update progress element with real upload ID for pause/resume
+        updateProgressElementId(progressId, uploadId);
+
         activeUploads.set(uploadId, {
             file,
             paused: false,
             currentChunk: 0,
-            totalChunks
+            totalChunks,
+            progressId
         });
 
         for (let i = 0; i < totalChunks; i++) {
@@ -178,7 +199,7 @@ async function chunkedUpload(file) {
             });
 
             uploadState.currentChunk = i + 1;
-            updateUploadProgress(file.name, end, file.size, true, uploadId);
+            updateUploadProgressById(progressId, end, file.size);
         }
 
         await fetch(`${state.API_URL}/api/files/upload/complete/${uploadId}`, {
@@ -187,11 +208,13 @@ async function chunkedUpload(file) {
         });
 
         activeUploads.delete(uploadId);
-        completeUploadProgress(file.name);
+        uploadProgressIds.delete(file.name);
+        completeUploadProgressById(progressId);
 
     } catch (err) {
         console.error('Chunked upload error:', err);
-        errorUploadProgress(file.name, err.message);
+        errorUploadProgressById(progressId, err.message);
+        uploadProgressIds.delete(file.name);
     }
 }
 
@@ -221,8 +244,10 @@ export function cancelUpload(uploadId) {
     document.getElementById(`upload-${uploadId}`)?.remove();
 }
 
-// Upload progress UI
-function showUploadProgress(filename, loaded, total, chunked = false, uploadId = null) {
+// ============ UPLOAD PROGRESS UI ============
+
+// Create progress element and return its ID
+function showUploadProgress(filename, loaded, total, chunked = false) {
     let container = document.getElementById('upload-progress-container');
     if (!container) {
         container = document.createElement('div');
@@ -231,71 +256,96 @@ function showUploadProgress(filename, loaded, total, chunked = false, uploadId =
         document.body.appendChild(container);
     }
 
-    const id = uploadId || `simple-${Date.now()}`;
+    const id = `upload-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     const percent = Math.round((loaded / total) * 100);
 
     const html = `
-        <div id="upload-${id}" class="bg-white dark:bg-slate-800 rounded-lg shadow-xl border p-4 min-w-[300px]">
+        <div id="${id}" class="bg-white dark:bg-slate-800 rounded-lg shadow-xl border border-slate-200 dark:border-slate-700 p-4 min-w-[300px]">
             <div class="flex items-center justify-between mb-2">
-                <div class="flex items-center gap-2 min-w-0">
+                <div class="flex items-center gap-2 min-w-0 flex-1">
                     <span class="material-symbols-outlined text-primary">upload_file</span>
                     <span class="text-sm font-medium truncate">${filename}</span>
                 </div>
-                ${chunked ? `
-                <div class="flex gap-1">
-                    <button id="pause-${id}" onclick="pauseUpload('${id}')" class="p-1 text-slate-400 hover:text-slate-600" title="Pause">
+                <div class="flex gap-1 upload-controls" style="display: ${chunked ? 'flex' : 'none'}">
+                    <button class="pause-btn p-1 text-slate-400 hover:text-slate-600" title="Pause">
                         <span class="material-symbols-outlined text-lg">pause</span>
                     </button>
-                    <button id="resume-${id}" onclick="resumeUpload('${id}')" class="hidden p-1 text-slate-400 hover:text-slate-600" title="Resume">
+                    <button class="resume-btn hidden p-1 text-slate-400 hover:text-slate-600" title="Resume">
                         <span class="material-symbols-outlined text-lg">play_arrow</span>
                     </button>
-                    <button onclick="cancelUpload('${id}')" class="p-1 text-slate-400 hover:text-red-500" title="Cancel">
+                    <button class="cancel-btn p-1 text-slate-400 hover:text-red-500" title="Cancel">
                         <span class="material-symbols-outlined text-lg">close</span>
                     </button>
                 </div>
-                ` : ''}
             </div>
             <div class="h-2 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
-                <div id="progress-bar-${id}" class="h-full bg-primary transition-all" style="width: ${percent}%"></div>
+                <div class="progress-bar h-full bg-primary transition-all" style="width: ${percent}%"></div>
             </div>
-            <div id="progress-text-${id}" class="text-xs text-slate-500 mt-1">${formatSize(loaded)} / ${formatSize(total)} (${percent}%)</div>
+            <div class="progress-text text-xs text-slate-500 mt-1">${formatSize(loaded)} / ${formatSize(total)} (${percent}%)</div>
         </div>
     `;
 
     container.insertAdjacentHTML('beforeend', html);
+    return id;
 }
 
-function updateUploadProgress(filename, loaded, total, chunked = false, uploadId = null) {
-    const id = uploadId || Array.from(document.querySelectorAll('[id^="upload-simple-"]'))[0]?.id.replace('upload-', '');
-    if (!id) return;
+// Update progress element with real upload ID for pause/resume controls
+function updateProgressElementId(progressId, uploadId) {
+    const el = document.getElementById(progressId);
+    if (!el) return;
+
+    const pauseBtn = el.querySelector('.pause-btn');
+    const resumeBtn = el.querySelector('.resume-btn');
+    const cancelBtn = el.querySelector('.cancel-btn');
+
+    if (pauseBtn) {
+        pauseBtn.id = `pause-${uploadId}`;
+        pauseBtn.onclick = () => pauseUpload(uploadId);
+    }
+    if (resumeBtn) {
+        resumeBtn.id = `resume-${uploadId}`;
+        resumeBtn.onclick = () => resumeUpload(uploadId);
+    }
+    if (cancelBtn) {
+        cancelBtn.onclick = () => cancelUpload(uploadId);
+    }
+}
+
+// Update progress by element ID
+function updateUploadProgressById(id, loaded, total) {
+    const el = document.getElementById(id);
+    if (!el) return;
 
     const percent = Math.round((loaded / total) * 100);
-    const bar = document.getElementById(`progress-bar-${id}`);
-    const text = document.getElementById(`progress-text-${id}`);
+    const bar = el.querySelector('.progress-bar');
+    const text = el.querySelector('.progress-text');
 
     if (bar) bar.style.width = `${percent}%`;
     if (text) text.textContent = `${formatSize(loaded)} / ${formatSize(total)} (${percent}%)`;
 }
 
-function completeUploadProgress(filename) {
-    const containers = document.querySelectorAll('[id^="upload-"]');
-    containers.forEach(el => {
-        if (el.textContent.includes(filename)) {
-            el.classList.add('border-green-500');
-            setTimeout(() => el.remove(), 2000);
-        }
-    });
+// Complete progress by element ID
+function completeUploadProgressById(id) {
+    const el = document.getElementById(id);
+    if (el) {
+        el.classList.add('border-green-500');
+        el.querySelector('.progress-bar')?.classList.add('bg-green-500');
+        el.querySelector('.progress-bar')?.classList.remove('bg-primary');
+        el.querySelector('.upload-controls')?.remove();
+        setTimeout(() => el.remove(), 2000);
+    }
 }
 
-function errorUploadProgress(filename, error) {
-    const containers = document.querySelectorAll('[id^="upload-"]');
-    containers.forEach(el => {
-        if (el.textContent.includes(filename)) {
-            el.classList.add('border-red-500');
-            const text = el.querySelector('[id^="progress-text-"]');
-            if (text) text.textContent = `Error: ${error}`;
-        }
-    });
+// Error progress by element ID
+function errorUploadProgressById(id, error) {
+    const el = document.getElementById(id);
+    if (el) {
+        el.classList.add('border-red-500');
+        el.querySelector('.progress-bar')?.classList.add('bg-red-500');
+        el.querySelector('.progress-bar')?.classList.remove('bg-primary');
+        const text = el.querySelector('.progress-text');
+        if (text) text.textContent = `Error: ${error}`;
+    }
 }
 
 // Make functions available globally
