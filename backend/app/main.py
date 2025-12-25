@@ -2,7 +2,7 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 
 from .config import APP_NAME, BASE_DIR
 from .auth import init_users
@@ -92,7 +92,7 @@ async def favicon():
     if favicon_path.exists():
         return FileResponse(favicon_path)
     # Return empty response if no favicon
-    return FileResponse(STATIC_DIR / "index.html", status_code=204)
+    return Response(status_code=204)
 
 
 # Also keep /static mount for backward compatibility

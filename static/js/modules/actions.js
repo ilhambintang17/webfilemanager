@@ -203,9 +203,13 @@ export async function renameFile(fileId, newName) {
 let moveTargetFile = null;
 
 // Helper to fetch folders recursively
+// Helper to fetch folders recursively
 async function fetchAllFolders(parentId = null, level = 0, allFolders = []) {
     try {
-        const url = `${state.API_URL}/api/files?folder_id=${parentId || ''}`;
+        const url = parentId
+            ? `${state.API_URL}/api/files?folder_id=${parentId}`
+            : `${state.API_URL}/api/files`; // Fetch root if no parentId
+
         const res = await fetch(url, {
             headers: { 'Authorization': `Bearer ${state.token}` }
         });
@@ -216,7 +220,7 @@ async function fetchAllFolders(parentId = null, level = 0, allFolders = []) {
 
             for (const folder of folders) {
                 // Add to list with indentation
-                folder.displayName = '-'.repeat(level * 2) + ' ' + folder.original_filename;
+                folder.displayName = '&nbsp;&nbsp;&nbsp;'.repeat(level) + '📁 ' + folder.original_filename;
                 allFolders.push(folder);
 
                 // Recursive call
@@ -344,14 +348,56 @@ export async function emptyTrash() {
 // Context menu
 let contextFile = null;
 
-export function showContextMenu(event, fileId) {
+export function showContextMenu(event, fileId = null) {
     event.preventDefault();
     event.stopPropagation();
     contextFile = fileId;
 
     const menu = document.getElementById('context-menu');
 
-    // Position menu logic (prevent overflow)
+    // Toggle items based on whether we clicked a file or empty space
+    const fileItems = menu.querySelectorAll('button:not([id="ctx-paste-btn"])');
+    fileItems.forEach(item => {
+        if (fileId) {
+            item.classList.remove('hidden');
+            item.classList.add('flex');
+        } else {
+            item.classList.add('hidden');
+            item.classList.remove('flex');
+        }
+    });
+
+    // Toggle dividers
+    const dividers = menu.querySelectorAll('div.h-px');
+    dividers.forEach(div => {
+        if (fileId) {
+            div.classList.remove('hidden');
+        } else {
+            div.classList.add('hidden');
+        }
+    });
+
+    // Update Favorite Text/Icon based on file state
+    if (fileId) {
+        const file = state.currentFiles.find(f => f.id === fileId);
+        if (file) {
+            const favText = document.getElementById('ctx-fav-text');
+            if (favText) {
+                favText.textContent = file.is_favorite ? 'Remove from Favorites' : 'Add to Favorites';
+                const starIcon = favText.previousElementSibling;
+                if (starIcon) {
+                    starIcon.textContent = file.is_favorite ? 'star' : 'star';
+                    starIcon.classList.toggle('text-amber-500', file.is_favorite);
+                    starIcon.style.fontVariationSettings = file.is_favorite ? "'FILL' 1" : "'FILL' 0";
+                }
+            }
+        }
+    }
+
+    // Explicitly update paste button state in context menu
+    updatePasteButtonState();
+
+    // Position menu logic
     const x = event.clientX;
     const y = event.clientY;
     const winWidth = window.innerWidth;
@@ -360,7 +406,7 @@ export function showContextMenu(event, fileId) {
     menu.style.left = `${x}px`;
     menu.style.top = `${y}px`;
 
-    // Adjust if off screen (simple check)
+    // Adjust if off screen
     if (x + 200 > winWidth) menu.style.left = `${x - 200}px`;
 
     menu.classList.remove('hidden');
@@ -470,11 +516,14 @@ export function copyFile(fileId) {
 }
 
 export function cutFile(fileId) {
-    const file = state.currentFiles.find(f => f.id === fileId);
-    if (file) {
-        setClipboard('cut', fileId, file.original_filename);
-        alert(`Cut: ${file.original_filename}`);
-    }
+    const file = state.currentFiles.find(f => f.id === fileId) || { original_filename: 'File', id: fileId };
+
+    setClipboard('cut', fileId, file.original_filename);
+
+    // Visual feedback (opacity)
+    // Try to find the element by ID if possible, or context
+    const elements = document.querySelectorAll(`div[oncontextmenu*="${fileId}"]`);
+    elements.forEach(el => el.classList.add('opacity-50', 'border-dashed', 'border-amber-500'));
 }
 
 export async function pasteFile() {
@@ -516,12 +565,24 @@ export async function pasteFile() {
 function updatePasteButtonState() {
     const data = getClipboard();
     const btn = document.getElementById('paste-btn');
+    const ctxBtn = document.getElementById('ctx-paste-btn');
+
     if (btn) {
         if (data) {
             btn.classList.remove('hidden');
             btn.title = `${data.action === 'cut' ? 'Move' : 'Copy'} ${data.filename}`;
         } else {
             btn.classList.add('hidden');
+        }
+    }
+
+    if (ctxBtn) {
+        if (data) {
+            ctxBtn.classList.remove('hidden');
+            const actionText = data.action === 'cut' ? 'Move' : 'Copy';
+            ctxBtn.innerHTML = `<span class="material-symbols-outlined text-lg">content_paste</span> Paste (${actionText} "${data.filename}")`;
+        } else {
+            ctxBtn.classList.add('hidden');
         }
     }
 }

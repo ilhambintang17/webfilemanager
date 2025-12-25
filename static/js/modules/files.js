@@ -80,6 +80,7 @@ export async function loadFiles(folderId) {
         const data = await res.json();
 
         if (data.success) {
+            state.currentFiles = data.data.items; // Store in state for context menu actions
             renderFiles(data.data.items);
             renderBreadcrumb(data.data.breadcrumb);
         }
