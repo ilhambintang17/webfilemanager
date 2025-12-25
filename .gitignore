@@ -1,0 +1,40 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+.venv/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Project specific - Keep structure, ignore content
+backend/storage/files/*
+!backend/storage/files/.gitkeep
+backend/storage/thumbnails/*
+!backend/storage/thumbnails/.gitkeep
+backend/storage/chunks/*
+!backend/storage/chunks/.gitkeep
+
+# Data files (user-specific)
+backend/data/users.json
+backend/data/files.json
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+*.temp
