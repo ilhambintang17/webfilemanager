@@ -95,10 +95,16 @@
     </div>
 
     <!-- ============ DASHBOARD PAGE ============ -->
-    <div id="dashboard-page" class="hidden w-full h-full">
+    <!-- ============ DASHBOARD PAGE ============ -->
+    <div id="dashboard-page" class="hidden w-full h-full relative">
+        <!-- Sidebar Overlay (Mobile) -->
+        <div id="sidebar-overlay" onclick="toggleSidebar()"
+            class="fixed inset-0 bg-black/50 z-20 hidden backdrop-blur-sm transition-opacity opacity-0 lg:hidden">
+        </div>
+
         <!-- Left Sidebar -->
-        <aside
-            class="w-64 flex-none bg-surface-light dark:bg-surface-dark border-r border-slate-200 dark:border-slate-800 flex flex-col z-20 hidden md:flex">
+        <aside id="sidebar"
+            class="fixed lg:static inset-y-0 left-0 z-30 w-64 bg-surface-light dark:bg-surface-dark border-r border-slate-200 dark:border-slate-800 flex flex-col transform -translate-x-full lg:translate-x-0 transition-transform duration-300 ease-in-out shadow-2xl lg:shadow-none">
             <!-- Logo -->
             <div class="h-16 flex items-center px-6 border-b border-slate-100 dark:border-slate-800/50">
                 <div class="flex items-center gap-2 text-primary">
@@ -165,21 +171,37 @@
             <!-- Header -->
             <header
                 class="h-16 flex-none bg-surface-light dark:bg-surface-dark border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-4 sm:px-6 z-10">
+                <!-- Mobile Menu & Logo Area -->
+                <div class="flex items-center gap-4 lg:hidden mr-4">
+                    <button onclick="toggleSidebar()"
+                        class="p-2 -ml-2 text-slate-600 dark:text-slate-300 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">
+                        <span class="material-symbols-outlined">menu</span>
+                    </button>
+                    <span class="text-lg font-bold text-slate-900 dark:text-white hidden sm:block">CloudDrive</span>
+                </div>
+
                 <!-- Search -->
-                <div class="flex-1 max-w-2xl px-4">
+                <div class="flex-1 max-w-2xl px-0 sm:px-4">
                     <div class="relative group">
                         <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                             <span class="material-symbols-outlined text-slate-400">search</span>
                         </div>
-                        <input id="search-input" onkeyup="handleSearch(event)"
+                        <input id="search-input"
                             class="block w-full pl-10 pr-3 py-2.5 border-none rounded-full bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-primary/50 sm:text-sm"
-                            placeholder="Search files, folders..." type="text" />
+                            placeholder="Search..." type="text" />
                     </div>
                 </div>
 
                 <!-- View Toggle -->
                 <div class="flex items-center gap-3 sm:gap-4">
-                    <div class="hidden sm:flex bg-slate-100 dark:bg-slate-800 p-1 rounded-lg">
+                    <!-- Theme Toggle -->
+                    <button onclick="toggleTheme()"
+                        class="p-2 rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                        title="Toggle Theme">
+                        <span id="theme-icon" class="material-symbols-outlined">dark_mode</span>
+                    </button>
+
+                    <div class="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-lg">
                         <button onclick="setViewMode('grid')" id="grid-btn"
                             class="p-1.5 rounded bg-white dark:bg-slate-700 shadow-sm text-primary">
                             <span class="material-symbols-outlined text-xl">grid_view</span>
@@ -234,7 +256,8 @@
                     </div>
 
                     <!-- Files Grid -->
-                    <div id="files-grid" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+                    <div id="files-grid"
+                        class="grid grid-cols-1 min-[450px]:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
                     </div>
 
                     <!-- Files List -->

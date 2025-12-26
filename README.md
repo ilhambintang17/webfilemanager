@@ -6,7 +6,7 @@ CloudDrive is a lightweight, database-free web-based file manager designed for l
 
 *   **No Database Required**: Uses a flat-file JSON storage system for users and file metadata, making it easy to deploy and backup.
 *   **Lightweight Backend**: Built with FastAPI for high performance and minimal resource usage.
-*   **Modern Frontend**: Responsive web interface with support for Grid and List views.
+*   **Modern Frontend**: Responsive web interface with support for Grid and List views. **Includes Dark Mode support.**
 *   **File Management**:
     *   Upload, download, rename, and delete files/folders.
     *   **Drag & Drop** uploads supported.
@@ -14,6 +14,7 @@ CloudDrive is a lightweight, database-free web-based file manager designed for l
     *   **Trash Management** with Restore and Permanent Delete options.
 *   **Preview Support**: Built-in previews for Images, Videos, PDFs, and Code/Text files.
 *   **Favorites & Search**: Quickly access important files and search across your storage.
+*   **Responsive Mobile Design**: Optimized for mobile devices with hamburger menu and touch-friendly controls.
 *   **Authentication**: Secure JWT-based login system.
 
 ## Project Structure

@@ -173,12 +173,12 @@ export async function searchFiles(query) {
     updateViewUI();
     showLoading();
     try {
-        const res = await fetch(`${state.API_URL}/api/files/search?q=${encodeURIComponent(query)}`, {
+        const res = await fetch(`${state.API_URL}/api/files?search=${encodeURIComponent(query)}`, {
             headers: { 'Authorization': `Bearer ${state.token}` }
         });
         const data = await res.json();
         if (data.success) {
-            renderFiles(data.data);
+            renderFiles(data.data.items);
             document.getElementById('breadcrumb').innerHTML = `<span class="font-semibold text-slate-900 dark:text-white">🔍 Search: ${query}</span>`;
         }
     } catch (err) {

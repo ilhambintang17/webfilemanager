@@ -25,6 +25,7 @@ import './modules/preview.js';
 import './modules/actions.js';
 import './modules/dialogs.js';
 import './modules/upload.js';
+import { initTheme } from './modules/ui.js';
 
 // ============ INITIALIZATION ============
 document.addEventListener('DOMContentLoaded', () => {
@@ -35,6 +36,9 @@ document.addEventListener('DOMContentLoaded', () => {
     } else {
         showLogin();
     }
+
+    // Initialize Theme
+    initTheme();
 
     // Close context menu on click
     document.addEventListener('click', () => {
