@@ -13,6 +13,23 @@ export const state = {
     currentView: 'files'
 };
 
+// ============ GLOBAL FETCH INTERCEPTOR ============
+const originalFetch = window.fetch;
+window.fetch = async function (...args) {
+    try {
+        const response = await originalFetch(...args);
+        if (response.status === 401) {
+            // Token expired or invalid
+            const { logout } = await import('./modules/auth.js');
+            logout();
+            return response;
+        }
+        return response;
+    } catch (error) {
+        throw error;
+    }
+};
+
 // ============ IMPORT MODULES ============
 import { showLogin, showDashboard, handleLogin, logout } from './modules/auth.js';
 import { loadFiles, loadFavorites, loadTrash, loadRecent, refreshCurrentView, searchFiles } from './modules/files.js';
