@@ -484,12 +484,55 @@ export function downloadContextFile() {
     }
 }
 
+// Rename Dialog Logic
+let renameTargetFileId = null;
+
+export function showRenameDialog(fileId) {
+    renameTargetFileId = fileId;
+    const file = state.currentFiles.find(f => f.id === fileId);
+    const dialog = document.getElementById('rename-dialog');
+    const input = document.getElementById('rename-input');
+    const currentName = document.getElementById('rename-current-name');
+
+    if (file) {
+        currentName.textContent = file.original_filename;
+        input.value = file.original_filename;
+    } else {
+        currentName.textContent = '';
+        input.value = '';
+    }
+
+    dialog.classList.remove('hidden');
+    setTimeout(() => {
+        input.focus();
+        input.select();
+    }, 100);
+}
+
+export function closeRenameDialog() {
+    document.getElementById('rename-dialog').classList.add('hidden');
+    renameTargetFileId = null;
+}
+
+export async function submitRename() {
+    const input = document.getElementById('rename-input');
+    const newName = input.value.trim();
+
+    if (!newName) {
+        input.classList.add('border-red-500');
+        input.focus();
+        return;
+    }
+
+    if (renameTargetFileId) {
+        await renameFile(renameTargetFileId, newName);
+        closeRenameDialog();
+    }
+}
+
 export function renameContextFile() {
     if (contextFile) {
-        const newName = prompt('Enter new name:');
-        if (newName) {
-            renameFile(contextFile, newName);
-        }
+        showRenameDialog(contextFile);
     }
 }
 
@@ -545,6 +588,9 @@ window.permanentDeleteContextFile = permanentDeleteContextFile;
 window.openMoveDialog = openMoveDialog;
 window.closeMoveDialog = closeMoveDialog;
 window.submitMove = submitMove;
+window.showRenameDialog = showRenameDialog;
+window.closeRenameDialog = closeRenameDialog;
+window.submitRename = submitRename;
 
 // Clipboard Logic (Cut/Copy/Paste)
 const CLIPBOARD_KEY = 'cloudDrive_clipboard';
