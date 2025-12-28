@@ -39,10 +39,16 @@ def load_files_data() -> dict:
     return {"files": [], "next_id": 1}
 
 
+import threading
+
+# Lock for thread safety
+FILES_LOCK = threading.Lock()
+
 def save_files_data(data: dict):
-    """Save files metadata to JSON"""
-    with open(FILES_FILE, "w") as f:
-        json.dump(data, f, indent=2, default=str)
+    """Save files metadata to JSON with thread safety"""
+    with FILES_LOCK:
+        with open(FILES_FILE, "w") as f:
+            json.dump(data, f, indent=2, default=str)
 
 
 def get_file_type(filename: str) -> str:
@@ -100,8 +106,12 @@ def create_file_record(
         "deleted_at": None
     }
     
-    data["files"].append(record)
-    save_files_data(data)
+    # Use atomic update to prevent race conditions
+    with FILES_LOCK:
+        data = load_files_data()
+        data["files"].append(record)
+        with open(FILES_FILE, "w") as f:
+            json.dump(data, f, indent=2, default=str)
     
     return record
 
@@ -144,40 +154,54 @@ def get_favorite_files() -> List[dict]:
 
 def update_file(file_id: str, updates: dict) -> Optional[dict]:
     """Update file record"""
-    data = load_files_data()
-    
-    for i, f in enumerate(data["files"]):
-        if f["id"] == file_id:
-            data["files"][i].update(updates)
-            data["files"][i]["modified_at"] = datetime.now().isoformat()
-            save_files_data(data)
-            return data["files"][i]
+    # Use atomic update
+    with FILES_LOCK:
+        data = load_files_data()
+        
+        for i, f in enumerate(data["files"]):
+            if f["id"] == file_id:
+                data["files"][i].update(updates)
+                data["files"][i]["modified_at"] = datetime.now().isoformat()
+                
+                # Write directly to avoid double locking if save_files_data is also locked
+                # Or just use the locked context. 
+                # Since save_files_data has a lock, calling it from here (which has a lock) needs RLock or carefulness.
+                # threading.Lock is NOT reentrant! We used Lock, not RLock.
+                # So we must NOT call save_files_data from within a locked block if save_files_data also acquires lock.
+                # Instead, let's duplicate write logic or use RLock.
+                with open(FILES_FILE, "w") as f2:
+                    json.dump(data, f2, indent=2, default=str)
+                return data["files"][i]
     
     return None
 
 
 def delete_file_record(file_id: str) -> bool:
     """Permanently delete file record and associated files"""
-    data = load_files_data()
-    
-    for i, f in enumerate(data["files"]):
-        if f["id"] == file_id:
-            # Delete physical file
-            if f["file_path"]:
-                file_path = FILES_DIR.parent / f["file_path"]
-                if file_path.exists():
-                    file_path.unlink()
-            
-            # Delete thumbnail (always try)
-            if f.get("thumbnail_path"):
-                thumb_path = THUMBNAILS_DIR / f"{file_id}.jpg"
-                if thumb_path.exists():
-                    thumb_path.unlink()
-            
-            # Remove from list
-            data["files"].pop(i)
-            save_files_data(data)
-            return True
+    with FILES_LOCK:
+        data = load_files_data()
+        
+        for i, f in enumerate(data["files"]):
+            if f["id"] == file_id:
+                # Delete physical file
+                if f["file_path"]:
+                    file_path = FILES_DIR.parent / f["file_path"]
+                    if file_path.exists():
+                        file_path.unlink()
+                
+                # Delete thumbnail (always try)
+                if f.get("thumbnail_path"):
+                    thumb_path = THUMBNAILS_DIR / f"{file_id}.jpg"
+                    if thumb_path.exists():
+                        thumb_path.unlink()
+                
+                # Remove from list
+                data["files"].pop(i)
+                
+                # Write directly
+                with open(FILES_FILE, "w") as f2:
+                    json.dump(data, f2, indent=2, default=str)
+                return True
     
     return False
 
